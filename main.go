@@ -79,16 +79,16 @@ func setupNode(ctx context.Context) (*loader.PluginLoader, icore.CoreAPI, error)
 	}
 	node.IsDaemon = true
 
-	log.Println("Start plugin")
-	err = plugins.Start(node)
-	if err != nil {
-		log.Printf("Cannot start plugins: %s", err)
-		return nil, nil, err
-	}
-
 	ipfs, err := coreapi.NewCoreAPI(node)
 	if err != nil {
 		log.Println("No IPFS repo available on the default path")
+		return nil, nil, err
+	}
+
+	log.Println("Start plugin")
+	err = plugins.Start(ipfs)
+	if err != nil {
+		log.Printf("Cannot start plugins: %s", err)
 		return nil, nil, err
 	}
 
