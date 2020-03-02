@@ -18,7 +18,7 @@ import (
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/plugin/plugins/cosmosds"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
-	"github.com/likecoin/likecoin-iscn-ipld/plugin/block/iscn"
+	"github.com/likecoin/iscn-ipld/plugin/block/iscn"
 
 	cosmos "github.com/cosmos/cosmos-sdk/types"
 	cid "github.com/ipfs/go-cid"

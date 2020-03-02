@@ -1,4 +1,4 @@
-# likecoin-iscn-poc
+# iscn-poc
 
 PoC on combining LikeCoin chain and IPLD to serve as ISCN.
 
