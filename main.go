@@ -147,7 +147,7 @@ func setupNode(ctx context.Context) (
 	}
 
 	log.Println("Start plugin")
-	err = plugins.Start(ipfs)
+	err = plugins.Start(node)
 	if err != nil {
 		log.Printf("Cannot start plugins: %s", err)
 		return nil, nil, nil, err
