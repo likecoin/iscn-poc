@@ -1,9 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -11,20 +10,23 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/btcsuite/btcutil/base58"
 	"github.com/cosmos/cosmos-sdk/store"
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/plugin/plugins/cosmosds"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
-	"github.com/likecoin/iscn-ipld/plugin/block/iscn"
+	"github.com/tidwall/pretty"
 
 	cosmos "github.com/cosmos/cosmos-sdk/types"
-	cid "github.com/ipfs/go-cid"
 	config "github.com/ipfs/go-ipfs-config"
 	libp2p "github.com/ipfs/go-ipfs/core/node/libp2p"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	iscn "github.com/likecoin/iscn-ipld/plugin/block"
+	iscnkernel "github.com/likecoin/iscn-ipld/plugin/block/kernel"
 	abci "github.com/tendermint/tendermint/abci/types"
 	tlog "github.com/tendermint/tendermint/libs/log"
 )
@@ -158,52 +160,106 @@ func setupNode(ctx context.Context) (
 	return plugins, ipfs, cms, nil
 }
 
-func genISCN() *iscn.Block {
-	str := fmt.Sprintf(
-		`{"version": 0,
-		  "id": "%d",
-		  "owner": "Aludirk",
-		  "edition": 1,
-		  "hash": "%d" }`,
-		rand.Int63(),
-		rand.Int63())
-	log.Printf("Try to pin data:\n%s", str)
-	d := map[string]interface{}{}
-	err := json.Unmarshal([]byte(str), &d)
-	if err != nil {
-		log.Panicf("Cannot unmarshal JSON: %s", err)
+func testIscnKernel(ctx context.Context, ipfs icore.CoreAPI) {
+	// --------------------------------------------------
+	log.Printf("Generating ISCN kernel block ...")
+
+	id := make([]byte, 32)
+	rand.Read(id)
+
+	data := map[string]interface{}{
+		"id":  id,
+		"zzz": -987654321,
+		"yyy": []string{"abc", "def", "ghi"},
+		"xxx": []byte{'x', 'y', 'z'},
+		"p": map[string]interface{}{
+			"a": 10,
+			"b": map[string]interface{}{
+				"ba": "abc",
+				"bb": 123,
+			},
+		},
 	}
 
-	b, err := iscn.NewISCNBlock(d)
+	b, err := iscnkernel.NewIscnKernelBlock(1, data)
 	if err != nil {
-		log.Panicf("Cannot create ISCN block: %s", err)
+		log.Panicf("Cannot create ISCN kernel block: %s", err)
 	}
+
+	// --------------------------------------------------
+	log.Printf("Pinning ISCN kernel block ...")
+
+	if err := ipfs.Dag().Pinning().Add(ctx, b); err != nil {
+		log.Panicf("Cannot pin IPLD: %s", err)
+	}
+
+	// --------------------------------------------------
+	log.Printf("Getting ISCN kernel block ...")
+
+	ret, err := ipfs.Dag().Get(ctx, b.Cid())
+	if err != nil {
+		log.Panicf("Cannot fetch IPLD: %s", err)
+		return
+	}
+
+	obj, ok := ret.(iscn.IscnObject)
+	if !ok {
+		log.Panicf("Cannot convert to \"IscnObject\"")
+	}
+
+	// --------------------------------------------------
+	// Report
+	log.Println("********************************************************************************")
+	log.Println("ISCN kernel report")
+	log.Println("********************************************************************************")
+
 	c, err := b.Cid().StringOfBase('z')
 	if err != nil {
 		log.Panicf("Cannot retrieve CID from block: %s", err)
 	}
-	log.Printf("The CID of the new ISCN block: %s", c)
+	log.Printf("  CID: %s", c)
 
-	return b
-}
+	log.Printf("  Raw data: %s", b.RawData())
 
-func pinISCN(ctx context.Context, ipfs icore.CoreAPI, b *iscn.Block) {
-	err := ipfs.Dag().Pinning().Add(ctx, b)
-	if err != nil {
-		log.Panicf("Cannot pin IPLD: %s", err)
+	log.Printf("  Type: %s", obj.GetName())
+	log.Printf("  Version: %d", obj.GetVersion())
+
+	if val, err := obj.GetBytes("id"); ok {
+		if !bytes.Equal(id, val) {
+			log.Panic("ID is not matched")
+		}
+
+		log.Printf("  ID (original): %s", base58.Encode(id))
+		log.Printf("  ID           : %s", base58.Encode(val))
+	} else {
+		log.Panicf("%s", err)
 	}
-}
 
-func getISCN(ctx context.Context, ipfs icore.CoreAPI, c cid.Cid) {
-	ret, err := ipfs.Dag().Get(ctx, c)
-	if err != nil {
-		log.Printf("Cannot fetch IPLD: %s", err)
-		return
+	log.Println("  Custom properties:")
+	for key, value := range obj.GetCustom() {
+		log.Printf("    \"%s\":", key)
+		log.Printf("      %T -> %v", value, value)
 	}
-	log.Printf("Fetch %s from DAG: %s", c, ret.RawData())
+
+	// --------------------------------------------------
+	// JSON
+
+	log.Println()
+	log.Println("********************************************************************************")
+	log.Println("ISCN kernel report")
+	log.Println("********************************************************************************")
+
+	json, err := obj.ToJSON()
+	if err != nil {
+		log.Panicf("Cannot marshal JSON: %s", err)
+	}
+	log.Println(json)
+	log.Println(string(pretty.Pretty([]byte(json))))
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 
@@ -224,29 +280,9 @@ func main() {
 	}
 	log.Println("IPFS node is created")
 
-	{
-		step := 1
+	testIscnKernel(ctx, ipfs)
 
-		switch step {
-		case 1:
-			{
-				// Try to pin a ISCN block.
-				b := genISCN()
-				pinISCN(ctx, ipfs, b)
-				getISCN(ctx, ipfs, b.Cid())
-				cms.Commit()
-			}
-		case 2:
-			{
-				// Use the CID in "step 1" to confirm that the ISCN block store in Cosmos store.
-				c, err := cid.Decode("")
-				if err != nil {
-					log.Panic("Cannot decode CID")
-				}
-				getISCN(ctx, ipfs, c)
-			}
-		}
-	}
+	cms.Commit()
 
 	<-done
 	log.Println("Close plugin")
