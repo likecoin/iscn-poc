@@ -216,7 +216,12 @@ func testContent(ctx context.Context, ipfs icore.CoreAPI) iscn.IscnObject {
 		return nil
 	}
 
-	obj1, ok := ret1.(iscn.IscnObject)
+	d1, err := iscncontent.DecodeData(ret1.RawData(), b1.Cid())
+	if err != nil {
+		log.Panicf("Cannot decode IPLD raw data: %s", err)
+	}
+
+	obj1, ok := d1.(iscn.IscnObject)
 	if !ok {
 		log.Panicf("Cannot convert to \"IscnObject\" for content v1")
 	}
@@ -227,7 +232,12 @@ func testContent(ctx context.Context, ipfs icore.CoreAPI) iscn.IscnObject {
 		return nil
 	}
 
-	obj2, ok := ret2.(iscn.IscnObject)
+	d2, err := iscncontent.DecodeData(ret2.RawData(), b2.Cid())
+	if err != nil {
+		log.Panicf("Cannot decode IPLD raw data: %s", err)
+	}
+
+	obj2, ok := d2.(iscn.IscnObject)
 	if !ok {
 		log.Panicf("Cannot convert to \"IscnObject\" for content v2")
 	}
@@ -401,13 +411,12 @@ func testIscnKernel(
 
 	id := make([]byte, 32)
 	rand.Read(id)
-	contentCid := content.Cid()
 
 	data := map[string]interface{}{
 		"id":        id,
 		"timestamp": "2020-01-01T12:34:56Z",
 		"version":   1,
-		"content":   &contentCid,
+		"content":   content.Cid(),
 		"zzz":       -987654321,
 		"yyy":       []string{"abc", "def", "ghi"},
 		"xxx":       []byte{'x', 'y', 'z'},
@@ -438,10 +447,14 @@ func testIscnKernel(
 	ret, err := ipfs.Dag().Get(ctx, b.Cid())
 	if err != nil {
 		log.Panicf("Cannot fetch IPLD: %s", err)
-		return
 	}
 
-	obj, ok := ret.(iscn.IscnObject)
+	d, err := iscnkernel.DecodeData(ret.RawData(), b.Cid())
+	if err != nil {
+		log.Panicf("Cannot decode IPLD raw data: %s", err)
+	}
+
+	obj, ok := d.(iscn.IscnObject)
 	if !ok {
 		log.Panicf("Cannot convert to \"IscnObject\"")
 	}
@@ -519,9 +532,8 @@ func main() {
 	}
 	log.Println("IPFS node is created")
 
-	testContent(ctx, ipfs)
-	// c1 := testContent(ctx, ipfs)
-	// testIscnKernel(ctx, ipfs, c1)
+	content := testContent(ctx, ipfs)
+	testIscnKernel(ctx, ipfs, content)
 
 	cms.Commit()
 
