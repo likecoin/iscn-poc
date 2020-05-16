@@ -216,7 +216,7 @@ func testContent(ctx context.Context, ipfs icore.CoreAPI) iscn.IscnObject {
 		return nil
 	}
 
-	d1, err := iscncontent.DecodeData(ret1.RawData(), b1.Cid())
+	d1, err := iscn.Decode(ret1.RawData(), b1.Cid())
 	if err != nil {
 		log.Panicf("Cannot decode IPLD raw data: %s", err)
 	}
@@ -232,7 +232,7 @@ func testContent(ctx context.Context, ipfs icore.CoreAPI) iscn.IscnObject {
 		return nil
 	}
 
-	d2, err := iscncontent.DecodeData(ret2.RawData(), b2.Cid())
+	d2, err := iscn.Decode(ret2.RawData(), b2.Cid())
 	if err != nil {
 		log.Panicf("Cannot decode IPLD raw data: %s", err)
 	}
@@ -449,7 +449,7 @@ func testIscnKernel(
 		log.Panicf("Cannot fetch IPLD: %s", err)
 	}
 
-	d, err := iscnkernel.DecodeData(ret.RawData(), b.Cid())
+	d, err := iscn.Decode(ret.RawData(), b.Cid())
 	if err != nil {
 		log.Panicf("Cannot decode IPLD raw data: %s", err)
 	}
